@@ -50,3 +50,4 @@ extension.pem
 
 # macOS
 .DS_Store
+.idea

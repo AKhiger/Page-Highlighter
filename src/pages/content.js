@@ -13,64 +13,22 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeNode(node) {
-  // Merge adjacent text nodes and normalize spaces
-  if (node.parentNode) {
-    node.parentNode.normalize();
-  }
-  return node;
-}
-
-function preserveWhitespace(element) {
-  if (!element || !element.parentNode) return null;
-  
-  const text = element.textContent;
-  const prevSibling = element.previousSibling;
-  const nextSibling = element.nextSibling;
-  
-  // Create text node with the content
-  const textNode = document.createTextNode(text);
-  
-  // Add spaces if needed
-  if (prevSibling && prevSibling.nodeType === Node.TEXT_NODE && 
-      !prevSibling.textContent.endsWith(' ') && !text.startsWith(' ')) {
-    element.parentNode.insertBefore(document.createTextNode(' '), element);
-  }
-  
-  element.parentNode.replaceChild(textNode, element);
-  
-  if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && 
-      !nextSibling.textContent.startsWith(' ') && !text.endsWith(' ')) {
-    element.parentNode.insertBefore(document.createTextNode(' '), nextSibling);
-  }
-
-  // Normalize the parent to merge adjacent text nodes
-  normalizeNode(textNode.parentNode);
-  return textNode;
-}
-
 function clearAllHighlights() {
   highlights.forEach(highlight => {
     highlight.elements.forEach(element => {
-      preserveWhitespace(element);
+      if (element && element.parentNode) {
+        const text = element.textContent;
+        const textNode = document.createTextNode(text);
+        element.parentNode.replaceChild(textNode, element);
+      }
     });
   });
-  
-  // Normalize the entire document body to clean up text nodes
-  normalizeNode(document.body);
-  
   highlights.clear();
   highlightId = 0;
 }
 
 function processTextNode(node, pattern, color, highlightInfo) {
-  // Normalize the node's parent first to ensure clean text nodes
-  normalizeNode(node.parentNode);
-  
-  // Use the original text value
-  const originalText = node.nodeValue;
-  // Create a normalized version for matching if needed
-  const text = pattern.flags.includes('i') ? originalText : normalizeWhitespace(originalText);
+  const text = node.nodeValue;
   const matches = Array.from(text.matchAll(pattern));
   
   if (matches.length === 0) return false;
@@ -79,15 +37,15 @@ function processTextNode(node, pattern, color, highlightInfo) {
   let lastIndex = 0;
 
   matches.forEach(match => {
-    // Use original text for creating text nodes
+    // Add text before the match
     if (match.index > lastIndex) {
       fragment.appendChild(
-        document.createTextNode(originalText.substring(lastIndex, match.index))
+        document.createTextNode(text.substring(lastIndex, match.index))
       );
     }
 
-    // Create and add the highlighted span with original matched text
-    const span = createHighlightSpan(originalText.substring(match.index, match.index + match[0].length), color);
+    // Create and add the highlighted span
+    const span = createHighlightSpan(match[0], color);
     fragment.appendChild(span);
     highlightInfo.elements.push(span);
 
@@ -95,9 +53,9 @@ function processTextNode(node, pattern, color, highlightInfo) {
   });
 
   // Add remaining text after the last match
-  if (lastIndex < originalText.length) {
+  if (lastIndex < text.length) {
     fragment.appendChild(
-      document.createTextNode(originalText.substring(lastIndex))
+      document.createTextNode(text.substring(lastIndex))
     );
   }
 
@@ -167,6 +125,10 @@ function highlightText(text, color, isRegex, isCaseSensitive) {
     const textNodes = [];
     let node;
     while (node = treeWalker.nextNode()) {
+      // Normalize whitespace in the text node if not using regex
+      if (!isRegex) {
+        node.nodeValue = normalizeWhitespace(node.nodeValue);
+      }
       textNodes.push(node);
     }
 
@@ -204,11 +166,13 @@ function removeHighlight(id) {
   if (!highlight) return;
 
   highlight.elements.forEach(element => {
-    preserveWhitespace(element);
+    if (element && element.parentNode) {
+      const text = element.textContent;
+      const textNode = document.createTextNode(text);
+      element.parentNode.replaceChild(textNode, element);
+    }
   });
 
-  // Normalize the document after removing highlights
-  normalizeNode(document.body);
   highlights.delete(id);
 }
 

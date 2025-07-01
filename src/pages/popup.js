@@ -82,34 +82,21 @@ function Popup() {
         return;
       }
       if (response?.success) {
-        // Remove any existing entries with the same text before adding the new one
-        setHighlights(prev => {
-          const filtered = prev.filter(h => h.text !== text);
-          const newHighlight = {
-            id: Date.now(),
-            text,
-            color: highlightColor,
-            timestamp: Date.now(),
-            count: response.count
-          };
-          // Keep only the last 5 entries after adding the new one
-          return [...filtered, newHighlight]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 5);
-        });
+        Toast.success(`Highlighted ${response.count} matches!`);
+        // Add the new highlight to the list, keeping only the last 5
+        const newHighlight = {
+          id: Date.now(),
+          text,
+          color: highlightColor
+        };
+        setHighlights(prev => [...prev.slice(-4), newHighlight]);
         if (text === searchText) {
-          setSearchText('');
+          setSearchText(''); // Only clear if it matches the input
         }
       } else {
         Toast.error('No matches found');
       }
     });
-  };
-
-  const handleKeyDown = (e, text) => {
-    if (e.key === 'Enter' && text && !isLoading) {
-      handleHighlight(text);
-    }
   };
 
   const removeHighlight = (id) => {
@@ -132,7 +119,11 @@ function Popup() {
             placeholder={isRegex ? "Enter regex pattern..." : "Enter text to highlight..."}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={(e) => handleKeyDown(e, searchText)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchText && !isLoading) {
+                handleHighlight();
+              }
+            }}
             className="flex-1 rounded-[3px] border border-gray-200"
           />
           <Input
@@ -192,25 +183,17 @@ function Popup() {
                   className="flex items-center justify-between p-2 border rounded-[3px] group hover:bg-gray-50"
                   style={{ backgroundColor: highlight.color + '20' }}
                 >
-                  <div className="flex items-center flex-1 min-w-0">
-                    <button
-                      onClick={() => handleHighlight(highlight.text)}
-                      onKeyDown={(e) => handleKeyDown(e, highlight.text)}
-                      className="text-sm truncate flex-1 text-left hover:text-blue-600 mr-2"
-                    >
-                      {highlight.text}
-                    </button>
-                    {highlight.count > 0 && (
-                      <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600 whitespace-nowrap">
-                        {highlight.count} {highlight.count === 1 ? 'match' : 'matches'}
-                      </span>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleHighlight(highlight.text)}
+                    className="text-sm truncate flex-1 mr-2 text-left hover:text-blue-600"
+                  >
+                    {highlight.text}
+                  </button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => removeHighlight(highlight.id)}
-                    className="rounded-[3px] opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 ml-2"
+                    className="rounded-[3px] opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
                   >
                     Remove
                   </Button>
