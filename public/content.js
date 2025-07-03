@@ -95,7 +95,7 @@ function highlightTextOnPage(searchTerm, isRegex) {
       // Highlighted match
       const span = document.createElement('span');
       span.className = 'page-highlighter-match';
-      span.textContent = match[0];
+      span.textContent = ` ${match[0]}`
       fragment.appendChild(span);
       currentHighlights.push(span); // Add to list for clearing
       lastIndex = regex.lastIndex;

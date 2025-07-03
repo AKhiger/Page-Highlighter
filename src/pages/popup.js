@@ -14,7 +14,7 @@ function Popup() {
   const [highlights, setHighlights] = React.useState([]);
 
   // Version number - increment with every change
-  const VERSION = "1.0.4";
+  const VERSION = "1.0.8";
 
   React.useEffect(() => {
     // Get existing highlights
@@ -90,7 +90,8 @@ function Popup() {
         const newHighlight = {
           id: Date.now(),
           text,
-          color: highlightColor
+          color: highlightColor,
+          count: response.count
         };
         setHighlights(prev => [...prev.slice(-4), newHighlight]);
         if (text === searchText) {
@@ -126,7 +127,7 @@ function Popup() {
           {/* Header with title and version */}
           <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: '#B0BEC5' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#444444', margin: 0 }}>
-              Page Highlighter
+              Search Highlighter
             </h3>
             <span style={{ fontSize: '11px', color: '#78909C' }}>
             v{VERSION}
@@ -146,7 +147,7 @@ function Popup() {
                 }}
                 className="flex-1 rounded-md"
                 style={{
-                  borderColor: '#81D4FA',
+                  borderColor: '#B0BEC5',
                   fontFamily: 'Arial, sans-serif',
                   fontSize: '13px',
                   color: '#444444'
@@ -157,7 +158,7 @@ function Popup() {
                 value={highlightColor}
                 onChange={(e) => setHighlightColor(e.target.value)}
                 className="w-10 h-10 p-1 rounded-md cursor-pointer"
-                style={{ borderColor: '#81D4FA' }}
+                style={{ borderColor: '#B0BEC5' }}
             />
           </div>
 
@@ -194,10 +195,11 @@ function Popup() {
               className="w-full font-medium text-white rounded-md shadow-sm transition-colors"
               disabled={!searchText || isLoading}
               style={{
-                backgroundColor: '#42A5F5',
-                borderColor: '#81D4FA',
+                backgroundColor: '#B0BEC5',
+                borderColor: 'gray',
                 fontFamily: 'Arial, sans-serif',
-                fontSize: '13px'
+                fontSize: '13px',
+                color: '#000'
               }}
           >
             {isLoading ? (
@@ -216,7 +218,7 @@ function Popup() {
           {highlights.length > 0 && (
               <div className="border-t pt-4" style={{ borderColor: '#B0BEC5' }}>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {highlights.map((highlight) => (
+                  {highlights.map((highlight, index) => (
                       <div
                           key={highlight.id}
                           className="flex items-center justify-between p-2 border rounded-md group hover:bg-gray-50"
@@ -236,18 +238,26 @@ function Popup() {
                         >
                           {highlight.text}
                         </button>
-                        <Button
-                            variant="ghost"
+                        <span style={{
+                          fontSize: '13px',
+                          fontFamily: 'Arial, sans-serif',
+                          color: '#444444',
+                          padding: '0 10px'
+                        }}>{highlight.count} Hits</span>
+                        {(index === highlights.length-1) && <Button
                             size="sm"
                             onClick={() => removeHighlight(highlight.id)}
-                            className="rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                            className="rounded-md  group-hover:opacity-100 hover:bg-red-50 hover:text-black"
                             style={{
+                              backgroundColor: '#B0BEC5',
+                              borderColor: 'darkgray',
+                              fontFamily: 'Arial, sans-serif',
                               fontSize: '12px',
-                              fontFamily: 'Arial, sans-serif'
+                              color: '#000'
                             }}
                         >
                           Remove
-                        </Button>
+                        </Button>}
                       </div>
                   ))}
                 </div>
@@ -257,6 +267,6 @@ function Popup() {
       </div>
   );
 }
-g
+
 const root = createRoot(document.getElementById('root'));
 root.render(<Popup />);

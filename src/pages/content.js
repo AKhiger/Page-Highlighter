@@ -1,5 +1,67 @@
+
+// Store original nodes before highlighting, keyed by search pattern
+const originalNodes = new Map();
 const highlights = new Map();
 let highlightId = 0;
+let currentSearchPattern = null;
+
+// Store original nodes before highlighting
+function storeOriginalNodes(searchPattern, textNodes) {
+  if (!originalNodes.has(searchPattern)) {
+    originalNodes.set(searchPattern, []);
+  }
+
+  const nodeBackups = originalNodes.get(searchPattern);
+
+  textNodes.forEach(textNode => {
+    const parent = textNode.parentNode;
+    if (parent) {
+      nodeBackups.push({
+        parent: parent,
+        originalHTML: parent.innerHTML,
+        originalTextContent: parent.textContent
+      });
+    }
+  });
+}
+
+// Revert highlights for a specific search pattern
+function revertHighlights(searchPattern) {
+  if (!originalNodes.has(searchPattern)) {
+    return;
+  }
+
+  const nodeBackups = originalNodes.get(searchPattern);
+
+  // Group backups by parent to avoid duplicate restorations
+  const parentMap = new Map();
+  nodeBackups.forEach(backup => {
+    if (!parentMap.has(backup.parent)) {
+      parentMap.set(backup.parent, backup);
+    }
+  });
+
+  // Restore original state of all modified nodes
+  parentMap.forEach(({ parent, originalHTML }) => {
+    if (parent && parent.parentNode) {
+      parent.innerHTML = originalHTML;
+    }
+  });
+
+  // Clean up stored data for this pattern
+  originalNodes.delete(searchPattern);
+}
+
+// Revert all highlights
+function revertAllHighlights() {
+  originalNodes.forEach((_, pattern) => {
+    revertHighlights(pattern);
+  });
+  originalNodes.clear();
+  highlights.clear();
+  highlightId = 0;
+  currentSearchPattern = null;
+}
 
 function createHighlightSpan(text, color) {
   const span = document.createElement('span');
@@ -14,23 +76,13 @@ function escapeRegExp(string) {
 }
 
 function clearAllHighlights() {
-  highlights.forEach(highlight => {
-    highlight.elements.forEach(element => {
-      if (element && element.parentNode) {
-        const text = element.textContent;
-        const textNode = document.createTextNode(text);
-        element.parentNode.replaceChild(textNode, element);
-      }
-    });
-  });
-  highlights.clear();
-  highlightId = 0;
+  revertAllHighlights();
 }
 
 function processTextNode(node, pattern, color, highlightInfo) {
   const text = node.nodeValue;
   const matches = Array.from(text.matchAll(pattern));
-  
+
   if (matches.length === 0) return false;
 
   const fragment = document.createDocumentFragment();
@@ -40,7 +92,7 @@ function processTextNode(node, pattern, color, highlightInfo) {
     // Add text before the match
     if (match.index > lastIndex) {
       fragment.appendChild(
-        document.createTextNode(text.substring(lastIndex, match.index))
+          document.createTextNode(text.substring(lastIndex, match.index))
       );
     }
 
@@ -55,7 +107,7 @@ function processTextNode(node, pattern, color, highlightInfo) {
   // Add remaining text after the last match
   if (lastIndex < text.length) {
     fragment.appendChild(
-      document.createTextNode(text.substring(lastIndex))
+        document.createTextNode(text.substring(lastIndex))
     );
   }
 
@@ -81,10 +133,21 @@ function normalizeWhitespace(text) {
 function highlightText(text, color, isRegex, isCaseSensitive) {
   const id = ++highlightId;
   let pattern;
-  
+
   // Normalize the search text if it's not a regex
   const searchText = isRegex ? text : normalizeWhitespace(text);
-  
+
+  // Create search pattern key for storage
+  const searchPatternKey = `${searchText}_${isRegex}_${isCaseSensitive}`;
+
+  // Revert previous highlights if we have a different search pattern
+  if (currentSearchPattern && currentSearchPattern !== searchPatternKey) {
+    revertHighlights(currentSearchPattern);
+  }
+
+  // Update current search pattern
+  currentSearchPattern = searchPatternKey;
+
   try {
     pattern = createSearchPattern(searchText, isRegex, isCaseSensitive);
   } catch (error) {
@@ -96,40 +159,53 @@ function highlightText(text, color, isRegex, isCaseSensitive) {
     id,
     text: searchText,
     color,
-    elements: []
+    elements: [],
+    searchPatternKey
   };
 
   // Get all text nodes in the document
   const treeWalker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode: (node) => {
-        // Skip script, style tags and existing highlights
-        const parent = node.parentNode;
-        if (!parent || 
-            parent.nodeName === 'SCRIPT' || 
-            parent.nodeName === 'STYLE' || 
-            parent.nodeName === 'NOSCRIPT' ||
-            parent.classList?.contains('page-highlighter-highlight') ||
-            parent.isContentEditable) {
-          return NodeFilter.FILTER_REJECT;
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          // Skip script, style tags and existing highlights
+          const parent = node.parentNode;
+          if (!parent ||
+              parent.nodeName === 'SCRIPT' ||
+              parent.nodeName === 'STYLE' ||
+              parent.nodeName === 'NOSCRIPT' ||
+              parent.classList?.contains('page-highlighter-highlight') ||
+              parent.classList?.contains(pattern) ||
+              parent.classList?.contains(searchText) ||
+              parent.isContentEditable) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
         }
-        return NodeFilter.FILTER_ACCEPT;
       }
-    }
   );
 
   try {
     // Process all text nodes in a single pass
     const textNodes = [];
+    const nodesToModify = [];
     let node;
+
     while (node = treeWalker.nextNode()) {
-      // Normalize whitespace in the text node if not using regex
-      if (!isRegex) {
-        node.nodeValue = normalizeWhitespace(node.nodeValue);
-      }
       textNodes.push(node);
+
+      // Check if this node will be modified
+      if (pattern.test(node.nodeValue)) {
+        nodesToModify.push(node);
+        // Reset regex lastIndex after test
+        pattern.lastIndex = 0;
+      }
+    }
+
+    // Store original nodes before highlighting
+    if (nodesToModify.length > 0) {
+      storeOriginalNodes(searchPatternKey, nodesToModify);
     }
 
     // Process each text node
@@ -165,15 +241,17 @@ function removeHighlight(id) {
   const highlight = highlights.get(id);
   if (!highlight) return;
 
-  highlight.elements.forEach(element => {
-    if (element && element.parentNode) {
-      const text = element.textContent;
-      const textNode = document.createTextNode(text);
-      element.parentNode.replaceChild(textNode, element);
-    }
-  });
+  // Revert the highlights for this search pattern
+  if (highlight.searchPatternKey) {
+    revertHighlights(highlight.searchPatternKey);
+  }
 
   highlights.delete(id);
+
+  // Clear current search pattern if this was the current one
+  if (currentSearchPattern === highlight.searchPatternKey) {
+    currentSearchPattern = null;
+  }
 }
 
 // Listen for messages from the extension
@@ -187,17 +265,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'highlight':
         // Clear previous highlights before adding new ones
         clearAllHighlights();
-        
+
         const highlight = highlightText(
-          request.text,
-          request.color,
-          request.isRegex,
-          request.isCaseSensitive
+            request.text,
+            request.color,
+            request.isRegex,
+            request.isCaseSensitive
         );
         if (highlight.error) {
           sendResponse({ success: false, error: highlight.error });
         } else {
-          sendResponse({ 
+          sendResponse({
             success: highlight.elements.length > 0,
             count: highlight.elements.length
           });
@@ -214,7 +292,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
 
       case 'remove-highlight':
-        removeHighlight(request.id);
+        //removeHighlight(request.id);
+        clearAllHighlights();
         sendResponse({ success: true });
         break;
 
@@ -226,4 +305,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ error: error.message });
   }
   return true; // Keep the message channel open for async response
-}); 
+});
