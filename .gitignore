@@ -19,6 +19,7 @@
 
 # production
 /build
+dist/*
 
 # misc
 .DS_Store
@@ -39,6 +40,8 @@ next-env.d.ts
 
 .genkit/*
 .env*
+.idea
+
 
 # firebase
 firebase-debug.log
@@ -50,4 +53,3 @@ extension.pem
 
 # macOS
 .DS_Store
-.idea

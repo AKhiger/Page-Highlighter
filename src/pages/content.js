@@ -214,7 +214,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
 
       case 'remove-highlight':
-        removeHighlight(request.id);
+        //removeHighlight(request.id);
+        clearAllHighlights();
         sendResponse({ success: true });
         break;
 
