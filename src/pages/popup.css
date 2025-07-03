@@ -33,8 +33,7 @@
     padding: var(--spacing-md);
     width: 384px;
     background-color: var(--color-background-white);
-    -webkit-backdrop-filter: blur(8px);
-            backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     font-family: var(--font-family);
     font-size: 13px;
     color: var(--color-text-dark);

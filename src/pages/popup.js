@@ -1,9 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import '../styles/tailwind.css';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Toast } from '../components/ui/toast';
+import './popup.css';
 
 function Popup() {
   const [searchText, setSearchText] = React.useState('');
@@ -13,11 +10,9 @@ function Popup() {
   const [isCaseSensitive, setIsCaseSensitive] = React.useState(false);
   const [highlights, setHighlights] = React.useState([]);
 
-  // Version number - increment with every change
-  const VERSION = "1.0.5";
+  const VERSION = "1.0.7";
 
   React.useEffect(() => {
-    // Get existing highlights
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (!tab) return;
       chrome.tabs.sendMessage(tab.id, { action: 'get-highlights' }, (response) => {
@@ -26,7 +21,6 @@ function Popup() {
           return;
         }
         if (response?.highlights) {
-          // Keep only the last 5 highlights
           setHighlights(response.highlights.slice(-5));
         }
       });
@@ -40,32 +34,26 @@ function Popup() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) {
-        Toast.error('No active tab found');
+        console.error('No active tab found');
         return;
       }
 
-      // First check if we can communicate with the content script
       chrome.tabs.sendMessage(tab.id, { action: 'ping' }, response => {
         if (chrome.runtime.lastError) {
-          // Content script not ready, inject it manually
           chrome.scripting.executeScript({
             target: { tabId: tab.id },
             files: ['content.js']
           }).then(() => {
-            // Now try highlighting after script is injected
             sendHighlightMessage(tab.id, text);
           }).catch(err => {
-            Toast.error('Failed to inject content script');
-            console.error(err);
+            console.error('Failed to inject content script', err);
           });
         } else {
-          // Content script is ready, send highlight message
           sendHighlightMessage(tab.id, text);
         }
       });
     } catch (error) {
-      Toast.error('Failed to highlight text');
-      console.error(error);
+      console.error('Failed to highlight text', error);
     } finally {
       setIsLoading(false);
     }
@@ -80,13 +68,11 @@ function Popup() {
       isCaseSensitive
     }, (response) => {
       if (chrome.runtime.lastError) {
-        Toast.error('Failed to communicate with the page');
-        console.error(chrome.runtime.lastError);
+        console.error('Failed to communicate with the page', chrome.runtime.lastError);
         return;
       }
       if (response?.success) {
-        Toast.success(`Highlighted ${response.count} matches!`);
-        // Add the new highlight to the list, keeping only the last 5
+        console.log(`Highlighted ${response.count} matches!`);
         const newHighlight = {
           id: Date.now(),
           text,
@@ -95,10 +81,10 @@ function Popup() {
         };
         setHighlights(prev => [...prev.slice(-4), newHighlight]);
         if (text === searchText) {
-          setSearchText(''); // Only clear if it matches the input
+          setSearchText('');
         }
       } else {
-        Toast.error('No matches found');
+        console.log('No matches found');
       }
     });
   };
@@ -115,155 +101,93 @@ function Popup() {
   };
 
   return (
-      <div
-          className="p-4 w-96 bg-white/90 backdrop-blur-sm"
-          style={{
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '13px',
-            color: '#444444'
-          }}
-      >
-        <div className="space-y-4">
-          {/* Header with title and version */}
-          <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: '#B0BEC5' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#444444', margin: 0 }}>
-              Page Highlighter
-            </h3>
-            <span style={{ fontSize: '11px', color: '#78909C' }}>
-            v{VERSION}
-          </span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Input
-                type="text"
-                placeholder={isRegex ? "Enter regex pattern..." : "Enter text to highlight..."}
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchText && !isLoading) {
-                    handleHighlight();
-                  }
-                }}
-                className="flex-1 rounded-md"
-                style={{
-                  borderColor: '#B0BEC5',
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: '13px',
-                  color: '#444444'
-                }}
-            />
-            <Input
-                type="color"
-                value={highlightColor}
-                onChange={(e) => setHighlightColor(e.target.value)}
-                className="w-10 h-10 p-1 rounded-md cursor-pointer"
-                style={{ borderColor: '#B0BEC5' }}
-            />
-          </div>
-
-          <div className="flex items-center justify-between px-1">
-            <label
-                className="flex items-center space-x-2"
-                style={{ fontSize: '13px', color: '#555555' }}
-            >
-              <input
-                  type="checkbox"
-                  checked={isRegex}
-                  onChange={(e) => setIsRegex(e.target.checked)}
-                  className="rounded border-gray-400 text-blue-500 focus:ring-blue-500"
-              />
-              <span>Regex</span>
-            </label>
-
-            <label
-                className="flex items-center space-x-2"
-                style={{ fontSize: '13px', color: '#555555' }}
-            >
-              <input
-                  type="checkbox"
-                  checked={isCaseSensitive}
-                  onChange={(e) => setIsCaseSensitive(e.target.checked)}
-                  className="rounded border-gray-400 text-blue-500 focus:ring-blue-500"
-              />
-              <span>Case sensitive</span>
-            </label>
-          </div>
-
-          <Button
-              onClick={() => handleHighlight()}
-              className="w-full font-medium text-white rounded-md shadow-sm transition-colors"
-              disabled={!searchText || isLoading}
-              style={{
-                backgroundColor: '#B0BEC5',
-                borderColor: 'gray',
-                fontFamily: 'Arial, sans-serif',
-                fontSize: '13px',
-                color: '#000'
+      <div className="popup-container">
+        <div className="input-row">
+          <input
+              type="text"
+              className="text-input"
+              placeholder={isRegex ? "Enter regex pattern..." : "Enter text to highlight..."}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchText && !isLoading) {
+                  handleHighlight();
+                }
               }}
-          >
-            {isLoading ? (
-                <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Highlighting...
-            </span>
-            ) : (
-                'Highlight'
-            )}
-          </Button>
-
-          {highlights.length > 0 && (
-              <div className="border-t pt-4" style={{ borderColor: '#B0BEC5' }}>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {highlights.map((highlight) => (
-                      <div
-                          key={highlight.id}
-                          className="flex items-center justify-between p-2 border rounded-md group hover:bg-gray-50"
-                          style={{
-                            backgroundColor: highlight.color + '20',
-                            borderColor: '#CFD8DC'
-                          }}
-                      >
-                        <button
-                            onClick={() => handleHighlight(highlight.text)}
-                            className="truncate flex-1 mr-2 text-left hover:text-blue-600"
-                            style={{
-                              fontSize: '13px',
-                              fontFamily: 'Arial, sans-serif',
-                              color: '#444444'
-                            }}
-                        >
-                          {highlight.text}
-                        </button>
-                        <span style={{
-                          fontSize: '13px',
-                          fontFamily: 'Arial, sans-serif',
-                          color: '#444444',
-                          padding: '0 10px'
-                        }}>{highlight.count} Hits</span>
-                        <Button
-                            size="sm"
-                            onClick={() => removeHighlight(highlight.id)}
-                            className="rounded-md  group-hover:opacity-100 hover:bg-red-50 hover:text-black"
-                            style={{
-                              backgroundColor: '#B0BEC5',
-                              borderColor: 'darkgray',
-                              fontFamily: 'Arial, sans-serif',
-                              fontSize: '12px',
-                              color: '#000'
-                            }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                  ))}
-                </div>
-              </div>
-          )}
+          />
+          <input
+              type="color"
+              className="color-input"
+              value={highlightColor}
+              onChange={(e) => setHighlightColor(e.target.value)}
+          />
         </div>
+
+        <div className="checkbox-row">
+          <label className="checkbox-label">
+            <input
+                type="checkbox"
+                checked={isRegex}
+                onChange={(e) => setIsRegex(e.target.checked)}
+            />
+            <span>Regex</span>
+          </label>
+
+          <label className="checkbox-label">
+            <input
+                type="checkbox"
+                checked={isCaseSensitive}
+                onChange={(e) => setIsCaseSensitive(e.target.checked)}
+            />
+            <span>Case sensitive</span>
+          </label>
+        </div>
+
+        <button
+            className="highlight-button"
+            onClick={() => handleHighlight()}
+            disabled={!searchText || isLoading}
+        >
+          {isLoading ? (
+              <span className="loading-content">
+            <svg className="loading-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Highlighting...
+          </span>
+          ) : (
+              'Highlight'
+          )}
+        </button>
+
+        {highlights.length > 0 && (
+            <div className="highlights-container">
+              <div className="highlights-list">
+                {highlights.map((highlight) => (
+                    <div
+                        key={highlight.id}
+                        className="highlight-item"
+                        style={{ backgroundColor: highlight.color + '20' }}
+                    >
+                      <button
+                          className="highlight-text-button"
+                          onClick={() => handleHighlight(highlight.text)}
+                      >
+                        {highlight.text}
+                      </button>
+                      <span className="hits-count">{highlight.count} Hits</span>
+                      <button
+                          className="remove-button"
+                          onClick={() => removeHighlight(highlight.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                ))}
+              </div>
+            </div>
+        )}
       </div>
   );
 }
