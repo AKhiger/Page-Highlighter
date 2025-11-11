@@ -4,6 +4,7 @@ const originalNodes = new Map();
 const highlights = new Map();
 let highlightId = 0;
 let currentSearchPattern = null;
+let scrollIdx = 1
 
 // Store original nodes before highlighting
 function storeOriginalNodes(searchPattern, textNodes) {
@@ -61,6 +62,8 @@ function revertAllHighlights() {
   highlights.clear();
   highlightId = 0;
   currentSearchPattern = null;
+    scrollIdx = 1
+    console.log('2 [Page Highlighter] Reverting all highlights', highlights);
 }
 
 function createHighlightSpan(text, color) {
@@ -130,29 +133,87 @@ function normalizeWhitespace(text) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function highlightText(text, color, isRegex, isCaseSensitive) {
+// Helpers extracted for clarity and reuse
+function normalizeOrKeep(text, isRegex) {
+  return isRegex ? text : normalizeWhitespace(text);
+}
+
+function buildSearchPatternKey(searchText, isRegex, isCaseSensitive) {
+  return `${searchText}_${isRegex}_${isCaseSensitive}`;
+}
+
+function tryCreatePattern(searchText, isRegex, isCaseSensitive) {
+  try {
+    return { pattern: createSearchPattern(searchText, isRegex, isCaseSensitive) };
+  } catch (e) {
+    return { error: 'Invalid regex pattern' };
+  }
+}
+
+function createTextTreeWalker(pattern, searchText) {
+  return document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        // Skip script, style tags and existing highlights
+        const parent = node.parentNode;
+        if (!parent ||
+            parent.nodeName === 'SCRIPT' ||
+            parent.nodeName === 'STYLE' ||
+            parent.nodeName === 'NOSCRIPT' ||
+            parent.classList?.contains('page-highlighter-highlight') ||
+            parent.classList?.contains(pattern) ||
+            parent.classList?.contains(searchText) ||
+            parent.isContentEditable) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+}
+
+function collectTextNodes(treeWalker, pattern) {
+  const textNodes = [];
+  const nodesToModify = [];
+  let node;
+  while (node = treeWalker.nextNode()) {
+    textNodes.push(node);
+    if (pattern.test(node.nodeValue)) {
+      nodesToModify.push(node);
+      // Reset regex lastIndex after test
+      pattern.lastIndex = 0;
+    }
+  }
+  return { textNodes, nodesToModify };
+}
+
+function applyHighlightsToNodes(textNodes, pattern, color, highlightInfo) {
+  textNodes.forEach(node => {
+    processTextNode(node, pattern, color, highlightInfo);
+  });
+}
+
+function highlightText(text, color, isRegex, isCaseSensitive, scrollIdx = 1) {
   const id = ++highlightId;
-  let pattern;
 
-  // Normalize the search text if it's not a regex
-  const searchText = isRegex ? text : normalizeWhitespace(text);
 
-  // Create search pattern key for storage
-  const searchPatternKey = `${searchText}_${isRegex}_${isCaseSensitive}`;
+  // Normalize the search text and build key
+  const searchText = normalizeOrKeep(text, isRegex);
+  const searchPatternKey = buildSearchPatternKey(searchText, isRegex, isCaseSensitive);
 
   // Revert previous highlights if we have a different search pattern
   if (currentSearchPattern && currentSearchPattern !== searchPatternKey) {
     revertHighlights(currentSearchPattern);
   }
-
-  // Update current search pattern
   currentSearchPattern = searchPatternKey;
 
-  try {
-    pattern = createSearchPattern(searchText, isRegex, isCaseSensitive);
-  } catch (error) {
+  // Create pattern
+  const { pattern, error } = tryCreatePattern(searchText, isRegex, isCaseSensitive);
+  if (error) {
     console.error('Invalid regex pattern:', error);
-    return { elements: [], error: 'Invalid regex pattern' };
+    return { elements: [], error };
   }
 
   const highlightInfo = {
@@ -160,59 +221,24 @@ function highlightText(text, color, isRegex, isCaseSensitive) {
     text: searchText,
     color,
     elements: [],
-    searchPatternKey
+    searchPatternKey,
+      scrollIdx
   };
 
-  // Get all text nodes in the document
-  const treeWalker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode: (node) => {
-          // Skip script, style tags and existing highlights
-          const parent = node.parentNode;
-          if (!parent ||
-              parent.nodeName === 'SCRIPT' ||
-              parent.nodeName === 'STYLE' ||
-              parent.nodeName === 'NOSCRIPT' ||
-              parent.classList?.contains('page-highlighter-highlight') ||
-              parent.classList?.contains(pattern) ||
-              parent.classList?.contains(searchText) ||
-              parent.isContentEditable) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          return NodeFilter.FILTER_ACCEPT;
-        }
-      }
-  );
-
+  // Walk DOM and collect nodes
   try {
-    // Process all text nodes in a single pass
-    const textNodes = [];
-    const nodesToModify = [];
-    let node;
-
-    while (node = treeWalker.nextNode()) {
-      textNodes.push(node);
-
-      // Check if this node will be modified
-      if (pattern.test(node.nodeValue)) {
-        nodesToModify.push(node);
-        // Reset regex lastIndex after test
-        pattern.lastIndex = 0;
-      }
-    }
+    const treeWalker = createTextTreeWalker(pattern, searchText);
+    const { textNodes, nodesToModify } = collectTextNodes(treeWalker, pattern);
 
     // Store original nodes before highlighting
     if (nodesToModify.length > 0) {
       storeOriginalNodes(searchPatternKey, nodesToModify);
     }
 
-    // Process each text node
-    textNodes.forEach(node => {
-      processTextNode(node, pattern, color, highlightInfo);
-    });
+    // Apply highlights
+    applyHighlightsToNodes(textNodes, pattern, color, highlightInfo);
 
+    // Notify if any highlights were found
     if (highlightInfo.elements.length > 0) {
       highlights.set(id, highlightInfo);
       try {
@@ -222,20 +248,48 @@ function highlightText(text, color, isRegex, isCaseSensitive) {
             id,
             text: searchText,
             color,
-            count: highlightInfo.elements.length
+            count: highlightInfo.elements.length, scrollIdx: highlightInfo.scrollIdx,
           }
         });
-      } catch (error) {
-        console.error('Failed to send highlight-added message:', error);
+      } catch (err) {
+        console.error('Failed to send highlight-added message:', err);
       }
     }
-  } catch (error) {
-    console.error('Error while highlighting:', error);
-    return { elements: [], error: error.message };
+  } catch (err) {
+    console.error('Error while highlighting:', err);
+    return { elements: [], error: err.message };
   }
 
   return highlightInfo;
 }
+function clearCurrentHighlightMark() {
+    document.querySelectorAll('.page-highlighter-current').forEach(el => {
+        el.classList.remove('page-highlighter-current');
+    });
+}
+
+function scrollToHighlight(index, currentHighlights) {
+    console.log('[Page Highlighter] scrollToHighlight called', { index, currentHighlights });
+    if (!currentHighlights.length) return;
+
+    if (index < 0) index = currentHighlights.length - 1;
+    if (index >= currentHighlights.length) index = 0;
+    // currentHighlightIndex = index;
+
+    clearCurrentHighlightMark();
+
+    const el = currentHighlights[index];
+    console.log('[Page Highlighter] Scrolling to highlight:', el);
+    if (el) {
+        el.classList.add('page-highlighter-current');
+        el.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'center'
+        });
+    }
+}
+
 
 function removeHighlight(id) {
   const highlight = highlights.get(id);
@@ -256,6 +310,8 @@ function removeHighlight(id) {
 
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+
+    console.log('[Page Highlighter] Message received from background:', request );
   try {
     switch (request.action) {
       case 'ping':
@@ -264,9 +320,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       case 'highlight':
         // Clear previous highlights before adding new ones
-        clearAllHighlights();
+        //clearAllHighlights();
 
-        const highlight = highlightText(
+         highlight = highlightText(
             request.text,
             request.color,
             request.isRegex,
@@ -277,17 +333,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } else {
           sendResponse({
             success: highlight.elements.length > 0,
-            count: highlight.elements.length
+            count: highlight.elements.length,
+              elements: highlight.elements,
+              isRegex: request.isRegex, isCaseSensitive: request.isCaseSensitive
           });
         }
         break;
 
+      case 'scroll-highlight': {
+        // Highlight navigation from popup arrow buttons
+        const index = Number(request.index);
+          let currentHighlights = highlights.get(highlightId) ? highlights.get(highlightId).elements : [];
+          console.log(" currentHighlights ", currentHighlights)
+        if (
+          Array.isArray(currentHighlights) &&
+          currentHighlights.length > 0
+        ) {
+          // Accept wraparound scrolling (like in popup UI)
+          let scrollIdx = index;
+          if (scrollIdx < 0) scrollIdx = currentHighlights.length - 1;
+          if (scrollIdx >= currentHighlights.length) scrollIdx = 0;
+          // currentHighlightIndex = scrollIdx;
+          console.log('[Page Highlighter] Scrolling to highlight:', scrollIdx);
+          scrollToHighlight(scrollIdx, currentHighlights);
+          highlights.get(highlightId).scrollIdx = scrollIdx;
+
+        }
+        sendResponse?.({ success: true });
+        break;
+      }
+
       case 'get-highlights':
+          console.log('[Page Highlighter] get-highlights received', highlights.values());
         const highlightsList = Array.from(highlights.values()).map(h => ({
           id: h.id,
           text: h.text,
-          color: h.color
+          color: h.color, count: h.elements.length, elements:h.elements, scrollIdx: h.scrollIdx
         }));
+          console.log(" highlightsList ", highlightsList)
         sendResponse({ highlights: highlightsList });
         break;
 

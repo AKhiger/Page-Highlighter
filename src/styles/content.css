@@ -6,6 +6,11 @@
   transition: background-color 0.2s ease;
   cursor: pointer;
 }
+.page-highlighter-current {
+    outline: 2.5px solid #ee824a !important;
+    box-shadow: 0 0 7px 2px #ee824a99;
+    transition: outline 0.2s;
+}
 
 .page-highlighter-highlight:hover {
   filter: brightness(0.9);

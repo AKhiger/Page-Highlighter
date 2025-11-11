@@ -64,12 +64,56 @@
       &:checked {
         background-color: #3B82F6;
       }
-
-      &:focus {
-        outline-color: #3B82F6;
-      }
     }
   }
+
+  .popup__input-row--stretch {
+    align-items: stretch;
+    gap: 4px;
+    display: flex;
+  }
+
+  .popup__input-text {
+    border-color: #B0BEC5 !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 13px !important;
+    color: #444444 !important;
+  }
+
+  .popup__input-color {
+    border-color: #B0BEC5 !important;
+  }
+
+  .popup__input-checkbox {
+    border-color: #B0BEC5 !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 13px !important;
+    color: #444444 !important;
+  }
+
+  .popup__nav-controls {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 10px;
+    gap: 2px;
+  }
+
+  .popup__nav-btn {
+    background: #B0BEC5;
+    border: 1px solid gray;
+    border-radius: 4px;
+    font-size: 1em;
+    padding: 2px 7px;
+    cursor: pointer;
+    margin: 0 5px;
+  }
+
+  .popup__nav-position {
+    min-width: 38px;
+    text-align: center;
+  }
+
+
 
   &__highlight-button {
     width: 100%;
@@ -123,6 +167,7 @@
     padding: 0.5rem;
     border: 1px solid #CFD8DC;
     border-radius: 0.375rem;
+    gap: 0.5rem;
 
     &:hover {
       background-color: #F9FAFB;
@@ -164,7 +209,7 @@
       border-radius: 0.375rem;
 
       &:hover {
-        background-color: #FFEBEE;
+        background-color: #78909c;
         color: black;
       }
     }

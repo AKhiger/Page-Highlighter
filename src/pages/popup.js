@@ -5,238 +5,300 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Toast } from '../components/ui/toast';
 
+// Utility function to query the active tab
+function queryActiveTab(callback) {
+    chrome.tabs.query({ active: true, currentWindow: true }, callback);
+}
+
+// Utility function to send message to the active tab
+function sendMessageToActiveTab(message, callback) {
+    queryActiveTab(([tab]) => {
+        if (!tab) return;
+        chrome.tabs.sendMessage(tab.id, message, callback);
+    });
+}
+
+function handleNav(direction, currentNavIdx, setCurrentNavIdx, highlight, isCountActive) {
+    console.log(" isCountActive ", isCountActive)
+    if (!isCountActive) return;
+    let nextIdx =
+        direction === "prev"
+            ? (currentNavIdx - 1 + highlight.count) % highlight.count
+            : (currentNavIdx + 1) % highlight.count;
+    console.log("nextIdx ", nextIdx)
+    setCurrentNavIdx(nextIdx);
+    sendMessageToActiveTab({
+        action: "scroll-highlight",
+        index: nextIdx,
+    });
+}
+
 function Popup() {
-  const [searchText, setSearchText] = React.useState('');
-  const [highlightColor, setHighlightColor] = React.useState('#ffeb3b');
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isRegex, setIsRegex] = React.useState(false);
-  const [isCaseSensitive, setIsCaseSensitive] = React.useState(false);
-  const [highlights, setHighlights] = React.useState([]);
+    const [searchText, setSearchText] = React.useState('');
+    const [highlightColor, setHighlightColor] = React.useState('#ffeb3b');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [isRegex, setIsRegex] = React.useState(false);
+    const [isCaseSensitive, setIsCaseSensitive] = React.useState(false);
+    const [highlights, setHighlights] = React.useState([]);
+    // Navigation state for latest highlight
+    const [currentNavIdx, setCurrentNavIdx] = React.useState(0);
 
-  // Version number - increment with every change
-  const VERSION = "1.0.9";
+    // Version number - increment with every change
+    const VERSION = "1.0.9";
 
-  React.useEffect(() => {
-    // Get existing highlights
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      if (!tab) return;
-      chrome.tabs.sendMessage(tab.id, { action: 'get-highlights' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          return;
+    React.useEffect(() => {
+        // Get existing highlights
+        sendMessageToActiveTab({ action: 'get-highlights' }, (response) => {
+            console.log("response  'get-highlights'!!! ", response, chrome.runtime.lastError)
+            if (chrome.runtime.lastError) {
+                console.error(chrome.runtime.lastError);
+                return;
+            }
+            if (response?.highlights) {
+                // Keep only the last 5 highlights
+
+                setHighlights(response.highlights.slice(-5));
+            }
+        });
+    }, []);
+
+    // Whenever the latest highlight or its count changes, reset nav idx to 0
+    React.useEffect(() => {
+        if (highlights.length > 0) setCurrentNavIdx(highlights[highlights.length - 1]?.scrollIdx || 0);
+    }, [highlights, highlights.length && highlights[highlights.length - 1]?.count]);
+
+    const handleHighlight = async (text = searchText) => {
+        if (!text) return;
+
+        setIsLoading(true);
+        try {
+            const [tab] = await new Promise(resolve => queryActiveTab(resolve));
+            if (!tab) {
+                Toast.error('No active tab found');
+                return;
+            }
+
+            // First check if we can communicate with the content script
+            chrome.tabs.sendMessage(tab.id, { action: 'ping' }, response => {
+                if (chrome.runtime.lastError) {
+                    // Content script not ready, inject it manually
+                    chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        files: ['content.js']
+                    }).then(() => {
+                        // Now try highlighting after script is injected
+                        sendHighlightMessage(tab.id, text);
+                    }).catch(err => {
+                        Toast.error('Failed to inject content script');
+                        console.error(err);
+                    });
+                } else {
+                    // Content script is ready, send highlight message
+                    sendHighlightMessage(tab.id, text);
+                }
+            });
+        } catch (error) {
+            Toast.error('Failed to highlight text');
+            console.error(error);
+        } finally {
+            setIsLoading(false);
         }
-        if (response?.highlights) {
-          // Keep only the last 5 highlights
-          setHighlights(response.highlights.slice(-5));
-        }
-      });
-    });
-  }, []);
+    };
 
-  const handleHighlight = async (text = searchText) => {
-    if (!text) return;
+    const sendHighlightMessage = (tabId, text, isRedo = false) => {
+        chrome.tabs.sendMessage(tabId, {
+            action: 'highlight',
+            text,
+            color: highlightColor,
+            isRegex,
+            isCaseSensitive
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                Toast.error('Failed to communicate with the page');
+                console.error(chrome.runtime.lastError);
+                return;
+            }
+            if (response?.success) {
+                console.log("---response ", response, "---")
+                if(!isRedo){
+                    Toast.success(`Highlighted ${response.count} matches!`);
+                    // Add the new highlight to the list, keeping only the last 5
+                    const newHighlight = {
+                        id: Date.now(),
+                        text,
+                        color: highlightColor,
+                        count: response.count,
+                        isRegex: response.isRegex, isCaseSensitive: response.isCaseSensitive
+                    };
+                    setHighlights(prev => [...prev.slice(-4), newHighlight]);
+                    setCurrentNavIdx(0);
+                }
 
-    setIsLoading(true);
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab) {
-        Toast.error('No active tab found');
-        return;
-      }
+                // Scroll to the first highlight
+                if (response.count >= 0) {
+                    sendMessageToActiveTab({
+                        action: "scroll-highlight",
+                        index: currentNavIdx,
+                    });
+                }
+                if (text === searchText) {
+                    setSearchText(''); // Only clear if it matches the input
+                }
+            } else {
+                Toast.error('No matches found');
+            }
+        });
+    };
 
-      // First check if we can communicate with the content script
-      chrome.tabs.sendMessage(tab.id, { action: 'ping' }, response => {
-        if (chrome.runtime.lastError) {
-          // Content script not ready, inject it manually
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['content.js']
-          }).then(() => {
-            // Now try highlighting after script is injected
-            sendHighlightMessage(tab.id, text);
-          }).catch(err => {
-            Toast.error('Failed to inject content script');
-            console.error(err);
-          });
-        } else {
-          // Content script is ready, send highlight message
-          sendHighlightMessage(tab.id, text);
-        }
-      });
-    } catch (error) {
-      Toast.error('Failed to highlight text');
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const removeHighlight = (id) => {
+        queryActiveTab(([tab]) => {
+            chrome.tabs.sendMessage(tab.id, {
+                action: 'remove-highlight',
+                id
+            }, () => {
+                setHighlights(prev => {
 
-  const sendHighlightMessage = (tabId, text) => {
-    chrome.tabs.sendMessage(tabId, {
-      action: 'highlight',
-      text,
-      color: highlightColor,
-      isRegex,
-      isCaseSensitive
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        Toast.error('Failed to communicate with the page');
-        console.error(chrome.runtime.lastError);
-        return;
-      }
-      if (response?.success) {
-        Toast.success(`Highlighted ${response.count} matches!`);
-        // Add the new highlight to the list, keeping only the last 5
-        const newHighlight = {
-          id: Date.now(),
-          text,
-          color: highlightColor,
-          count: response.count
-        };
-        setHighlights(prev => [...prev.slice(-4), newHighlight]);
-        if (text === searchText) {
-          setSearchText(''); // Only clear if it matches the input
-        }
-      } else {
-        Toast.error('No matches found');
-      }
-    });
-  };
 
-  const removeHighlight = (id) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'remove-highlight',
-        id
-      }, () => {
-        setHighlights(prev => prev.filter(h => h.id !== id));
-      });
-    });
-  };
+                    let searches = prev.filter(h => h.id !== id)
+                    const lastSearch = searches[searches.length - 1]
+                    //searches.splice(searches.length - 1, 1)
+                    setIsRegex(lastSearch.isRegex)
+                    setIsCaseSensitive(lastSearch.isCaseSensitive)
+                    setCurrentNavIdx(0)
+                    sendHighlightMessage(tab.id, lastSearch?.text || '', true)
+                    return searches;
+                });
+            });
+        });
+    };
 
-  return (
-      <div className="popup">
-        <div className="popup__container">
-          {/* Header with title and version */}
-          <div className="popup__header">
-            <h3 className="popup__header-title">
-              Search Highlighter
-            </h3>
-            <span className="popup__header-version">
-              v{VERSION}
-            </span>
-          </div>
+    return (
+        <div className="popup">
+            <div className="popup__container">
+                <div className="popup__input-row popup__input-row--stretch">
+                    <Input
+                        type="text"
+                        className="popup__input-text"
+                        placeholder={isRegex ? "Enter regex pattern..." : "Enter text to highlight..."}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && searchText && !isLoading) {
+                                handleHighlight();
+                            }
+                        }}
+                    />
 
-                      <div className="popup__input-row">
-            <Input
-                type="text"
-                placeholder={isRegex ? "Enter regex pattern..." : "Enter text to highlight..."}
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchText && !isLoading) {
-                    handleHighlight();
-                  }
-                }}
-                style={{
-                  borderColor: '#B0BEC5',
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: '13px',
-                  color: '#444444'
-                }}
-            />
-            <Input
-                type="color"
-                value={highlightColor}
-                onChange={(e) => setHighlightColor(e.target.value)}
-                style={{ borderColor: '#B0BEC5' }}
-            />
-          </div>
-
-                      <div className="popup__checkbox-row">
-            <label className="popup__checkbox-label">
-              <input
-                  style={{
-                    borderColor: '#B0BEC5',
-                    fontFamily: 'Arial, sans-serif',
-                    fontSize: '13px',
-                    color: '#444444'
-                  }}
-                  type="checkbox"
-                  checked={isRegex}
-                  onChange={(e) => setIsRegex(e.target.checked)}
-              />
-              <span>Regex</span>
-            </label>
-
-            <label className="popup__checkbox-label">
-              <input
-                  style={{
-                    borderColor: '#B0BEC5',
-                    fontFamily: 'Arial, sans-serif',
-                    fontSize: '13px',
-                    color: '#444444'
-                  }}
-                  type="checkbox"
-                  checked={isCaseSensitive}
-                  onChange={(e) => setIsCaseSensitive(e.target.checked)}
-              />
-              <span>Case sensitive</span>
-            </label>
-          </div>
-
-          <Button
-              onClick={() => handleHighlight()}
-              className="popup__highlight-button"
-              disabled={!searchText || isLoading}
-          >
-            {isLoading ? (
-                <span className="spinner">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Highlighting...
-                </span>
-            ) : (
-                'Highlight'
-            )}
-          </Button>
-
-          {highlights.length > 0 && (
-              <div className="popup__highlights">
-                <div className="popup__highlights-list">
-                  {highlights.map((highlight, index) => (
-                      <div
-                          key={highlight.id}
-                          className="popup__highlight-item"
-                          style={{
-                            backgroundColor: highlight.color + '20',
-                            borderColor: '#CFD8DC'
-                          }}
-                      >
-                        <button
-                            onClick={() => handleHighlight(highlight.text)}
-                            className="popup__highlight-item-text"
-                        >
-                          {highlight.text}
-                        </button>
-                        <span className="popup__highlight-item-count">{highlight.count} Hits</span>
-                        {(index === highlights.length-1) && <Button
-                            size="sm"
-                            onClick={() => removeHighlight(highlight.id)}
-                            className="popup__highlight-item-remove"
-                        >
-                          Remove
-                        </Button>}
-                      </div>
-                  ))}
+                    <Input
+                        type="color"
+                        className="popup__input-color"
+                        value={highlightColor}
+                        onChange={(e) => setHighlightColor(e.target.value)}
+                    />
                 </div>
-              </div>
-          )}
+
+                <div className="popup__checkbox-row">
+                    <label className="popup__checkbox-label">
+                        <input
+                            className="popup__input-checkbox"
+                            type="checkbox"
+                            checked={isRegex}
+                            onChange={(e) => setIsRegex(e.target.checked)}
+                        />
+                        <span>Regex</span>
+                    </label>
+
+                    <label className="popup__checkbox-label">
+                        <input
+                            className="popup__input-checkbox"
+                            type="checkbox"
+                            checked={isCaseSensitive}
+                            onChange={(e) => setIsCaseSensitive(e.target.checked)}
+                        />
+                        <span>Case sensitive</span>
+                    </label>
+                </div>
+                {highlights.length > 0 && (
+                    <div className="popup__highlights">
+                        <div className="popup__highlights-list">
+                            {highlights.map((highlight, index) => {
+                                const isActive = index === highlights.length - 1;
+                                const isCountActive = isActive && highlight.count > 0;
+                                return (
+                                    <div
+                                        key={highlight.id}
+                                        className="popup__highlight-item"
+                                        style={{
+                                            backgroundColor: highlight.color + "20",
+                                            borderColor: "#CFD8DC",
+                                        }}
+                                    >
+                                        <button
+                                            onClick={() => handleHighlight(highlight.text)}
+                                            className="popup__highlight-item-text"
+                                        >
+                                            {highlight.text}
+                                        </button>
+                                        <span className="popup__highlight-item-count">
+                          {highlight.count} Hits
+                        </span>
+                                        {isActive && (
+                                            <span className="popup__nav-controls">
+                            <button
+                                aria-label="Previous match"
+                                className="popup__nav-btn"
+                                onClick={() =>
+                                    handleNav(
+                                        "prev",
+                                        currentNavIdx,
+                                        setCurrentNavIdx,
+                                        highlight,
+                                        isCountActive
+                                    )
+                                }
+                                disabled={!isCountActive}
+                            >
+                              ↑
+                            </button>
+                            <span className="popup__nav-position">
+                              {isCountActive ? `${currentNavIdx + 1} / ${highlight.count}` : "—"}
+                            </span>
+                            <button
+                                aria-label="Next match"
+                                className="popup__nav-btn"
+                                onClick={() =>
+                                    handleNav(
+                                        "next",
+                                        currentNavIdx,
+                                        setCurrentNavIdx,
+                                        highlight,
+                                        isCountActive
+                                    )
+                                }
+                                disabled={!isCountActive}
+                            >
+                              ↓
+                            </button>
+                          </span>
+                                        )}
+                                        {isActive && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => removeHighlight(highlight.id)}
+                                                className="popup__highlight-item-remove"
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
-  );
+    );
 }
 
 const root = createRoot(document.getElementById('root'));
