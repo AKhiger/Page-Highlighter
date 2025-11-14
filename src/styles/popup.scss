@@ -1,6 +1,7 @@
-@import './components/button.scss';
-@import './components/input.scss';
-@import './components/toast.scss';
+@use  './components/button.scss';
+@use './components/input.scss';
+@use  './components/toast.scss';
+
 
 .popup {
   padding: 1rem;
@@ -186,11 +187,7 @@
       background: none;
       border: none;
       padding: 0;
-      cursor: pointer;
 
-      &:hover {
-        color: #2563EB;
-      }
     }
 
     &-count {

@@ -63,7 +63,6 @@ function revertAllHighlights() {
   highlightId = 0;
   currentSearchPattern = null;
     scrollIdx = 1
-    console.log('2 [Page Highlighter] Reverting all highlights', highlights);
 }
 
 function createHighlightSpan(text, color) {
@@ -269,7 +268,6 @@ function clearCurrentHighlightMark() {
 }
 
 function scrollToHighlight(index, currentHighlights) {
-    console.log('[Page Highlighter] scrollToHighlight called', { index, currentHighlights });
     if (!currentHighlights.length) return;
 
     if (index < 0) index = currentHighlights.length - 1;
@@ -311,7 +309,6 @@ function removeHighlight(id) {
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
-    console.log('[Page Highlighter] Message received from background:', request );
   try {
     switch (request.action) {
       case 'ping':
@@ -353,8 +350,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           let scrollIdx = index;
           if (scrollIdx < 0) scrollIdx = currentHighlights.length - 1;
           if (scrollIdx >= currentHighlights.length) scrollIdx = 0;
-          // currentHighlightIndex = scrollIdx;
-          console.log('[Page Highlighter] Scrolling to highlight:', scrollIdx);
           scrollToHighlight(scrollIdx, currentHighlights);
           highlights.get(highlightId).scrollIdx = scrollIdx;
 
@@ -370,7 +365,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           text: h.text,
           color: h.color, count: h.elements.length, elements:h.elements, scrollIdx: h.scrollIdx
         }));
-          console.log(" highlightsList ", highlightsList)
         sendResponse({ highlights: highlightsList });
         break;
 

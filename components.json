@@ -5,10 +5,9 @@
   "tsx": true,
   "aliases": {
     "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+
+    "ui": "@/components/ui"
+
   },
   "iconLibrary": "lucide"
 }

@@ -19,13 +19,11 @@ function sendMessageToActiveTab(message, callback) {
 }
 
 function handleNav(direction, currentNavIdx, setCurrentNavIdx, highlight, isCountActive) {
-    console.log(" isCountActive ", isCountActive)
     if (!isCountActive) return;
     let nextIdx =
         direction === "prev"
             ? (currentNavIdx - 1 + highlight.count) % highlight.count
             : (currentNavIdx + 1) % highlight.count;
-    console.log("nextIdx ", nextIdx)
     setCurrentNavIdx(nextIdx);
     sendMessageToActiveTab({
         action: "scroll-highlight",
@@ -49,7 +47,6 @@ function Popup() {
     React.useEffect(() => {
         // Get existing highlights
         sendMessageToActiveTab({ action: 'get-highlights' }, (response) => {
-            console.log("response  'get-highlights'!!! ", response, chrome.runtime.lastError)
             if (chrome.runtime.lastError) {
                 console.error(chrome.runtime.lastError);
                 return;
@@ -119,7 +116,6 @@ function Popup() {
                 return;
             }
             if (response?.success) {
-                console.log("---response ", response, "---")
                 if(!isRedo){
                     Toast.success(`Highlighted ${response.count} matches!`);
                     // Add the new highlight to the list, keeping only the last 5
@@ -157,15 +153,17 @@ function Popup() {
                 id
             }, () => {
                 setHighlights(prev => {
-
-
                     let searches = prev.filter(h => h.id !== id)
                     const lastSearch = searches[searches.length - 1]
-                    //searches.splice(searches.length - 1, 1)
-                    setIsRegex(lastSearch.isRegex)
-                    setIsCaseSensitive(lastSearch.isCaseSensitive)
-                    setCurrentNavIdx(0)
-                    sendHighlightMessage(tab.id, lastSearch?.text || '', true)
+
+                    // Only update state and re-highlight if there are remaining highlights
+                    if (lastSearch) {
+                        setIsRegex(lastSearch.isRegex)
+                        setIsCaseSensitive(lastSearch.isCaseSensitive)
+                        setCurrentNavIdx(0)
+                        sendHighlightMessage(tab.id, lastSearch.text, true)
+                    }
+
                     return searches;
                 });
             });
@@ -233,12 +231,12 @@ function Popup() {
                                             borderColor: "#CFD8DC",
                                         }}
                                     >
-                                        <button
-                                            onClick={() => handleHighlight(highlight.text)}
+                                        <span
+
                                             className="popup__highlight-item-text"
                                         >
                                             {highlight.text}
-                                        </button>
+                                        </span>
                                         <span className="popup__highlight-item-count">
                           {highlight.count} Hits
                         </span>

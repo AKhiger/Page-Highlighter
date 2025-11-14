@@ -13,9 +13,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tailwind-merge": "^3.0.1",
-    "tailwindcss-animate": "^1.0.7"
+    "react-dom": "^18.2.0"
+
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
@@ -32,6 +31,7 @@
     "postcss-loader": "^8.1.1",
     "sass": "^1.72.0",
     "sass-loader": "^14.1.1",
+    "sharp": "^0.34.5",
     "style-loader": "^3.3.4",
     "webpack": "^5.90.3",
     "webpack-cli": "^5.1.4",

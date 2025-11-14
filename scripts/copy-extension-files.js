@@ -1,4 +1,3 @@
-/*
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -129,4 +128,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('Extension files copied successfully to dist directory');
 }
 
-copyExtensionFiles().catch(console.error); */
+copyExtensionFiles().catch(console.error);

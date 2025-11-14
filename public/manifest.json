@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Page Highlighter",
+  "name": "Better Search",
   "version": "1.0",
   "description": "Search and highlight text on web pages with exact or regex matching.",
   "permissions": [
