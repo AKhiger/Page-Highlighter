@@ -1,23 +1,38 @@
+/* Support both legacy and new highlight class names */
+.page-highlighter-highlight,
 .page-highlighter-match {
   background-color: yellow !important;
   color: black !important;
   font-weight: normal !important;
   font-style: normal !important;
+
   padding: 1px 0 !important; /* Minimal padding */
   margin: 0 !important;
   border-radius: 3px !important;
   animation: pageHighlighterFadeIn 0.3s ease-in-out;
   /* Ensure inline display and prevent breaking words unnecessarily */
-  display: inline !important; 
+  display: inline !important;
   box-shadow: 0 0 5px rgba(255, 255, 0, 0.5); /* Subtle glow */
 }
 
+.page-highlighter-highlight:hover,
+.page-highlighter-match:hover {
+  filter: brightness(0.95);
+}
+
+/* Current (active) highlight indicator */
+.page-highlighter-current {
+  outline: 2.5px solid #ee824a !important;
+  box-shadow: 0 0 7px 2px #ee824a99;
+  transition: outline 0.2s;
+}
+
 @keyframes pageHighlighterFadeIn {
-  from { 
+  from {
     opacity: 0.5;
     background-color: rgba(255, 255, 0, 0.5) !important;
   }
-  to { 
+  to {
     opacity: 1;
     background-color: yellow !important;
   }
