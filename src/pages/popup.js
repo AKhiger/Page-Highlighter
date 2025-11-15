@@ -38,13 +38,16 @@ function Popup() {
     const [isRegex, setIsRegex] = React.useState(false);
     const [isCaseSensitive, setIsCaseSensitive] = React.useState(false);
     const [highlights, setHighlights] = React.useState([]);
-    // Navigation state for latest highlight
     const [currentNavIdx, setCurrentNavIdx] = React.useState(0);
 
-    // Version number - increment with every change
-    const VERSION = "1.0.9";
-
     React.useEffect(() => {
+        // Load saved color from storage
+        chrome.storage.sync.get(['highlightColor'], (result) => {
+            if (result.highlightColor) {
+                setHighlightColor(result.highlightColor);
+            }
+        });
+
         // Get existing highlights
         sendMessageToActiveTab({ action: 'get-highlights' }, (response) => {
             if (chrome.runtime.lastError) {
@@ -191,7 +194,12 @@ function Popup() {
                         type="color"
                         className="popup__input-color"
                         value={highlightColor}
-                        onChange={(e) => setHighlightColor(e.target.value)}
+                        onChange={(e) => {
+                            const newColor = e.target.value;
+                            setHighlightColor(newColor);
+                            // Save color to storage
+                            chrome.storage.sync.set({ highlightColor: newColor });
+                        }}
                     />
                 </div>
 
@@ -216,6 +224,7 @@ function Popup() {
                         <span>Case sensitive</span>
                     </label>
                 </div>
+
                 {highlights.length > 0 && (
                     <div className="popup__highlights">
                         <div className="popup__highlights-list">
@@ -232,52 +241,51 @@ function Popup() {
                                         }}
                                     >
                                         <span
-
                                             className="popup__highlight-item-text"
                                         >
                                             {highlight.text}
                                         </span>
                                         <span className="popup__highlight-item-count">
-                          {highlight.count} Hits
-                        </span>
+                                            {highlight.count} Hits
+                                        </span>
                                         {isActive && (
                                             <span className="popup__nav-controls">
-                            <button
-                                aria-label="Previous match"
-                                className="popup__nav-btn"
-                                onClick={() =>
-                                    handleNav(
-                                        "prev",
-                                        currentNavIdx,
-                                        setCurrentNavIdx,
-                                        highlight,
-                                        isCountActive
-                                    )
-                                }
-                                disabled={!isCountActive}
-                            >
-                              ↑
-                            </button>
-                            <span className="popup__nav-position">
-                              {isCountActive ? `${currentNavIdx + 1} / ${highlight.count}` : "—"}
-                            </span>
-                            <button
-                                aria-label="Next match"
-                                className="popup__nav-btn"
-                                onClick={() =>
-                                    handleNav(
-                                        "next",
-                                        currentNavIdx,
-                                        setCurrentNavIdx,
-                                        highlight,
-                                        isCountActive
-                                    )
-                                }
-                                disabled={!isCountActive}
-                            >
-                              ↓
-                            </button>
-                          </span>
+                                                <button
+                                                    aria-label="Previous match"
+                                                    className="popup__nav-btn"
+                                                    onClick={() =>
+                                                        handleNav(
+                                                            "prev",
+                                                            currentNavIdx,
+                                                            setCurrentNavIdx,
+                                                            highlight,
+                                                            isCountActive
+                                                        )
+                                                    }
+                                                    disabled={!isCountActive}
+                                                >
+                                                    ↑
+                                                </button>
+                                                <span className="popup__nav-position">
+                                                    {isCountActive ? `${currentNavIdx + 1} / ${highlight.count}` : "—"}
+                                                </span>
+                                                <button
+                                                    aria-label="Next match"
+                                                    className="popup__nav-btn"
+                                                    onClick={() =>
+                                                        handleNav(
+                                                            "next",
+                                                            currentNavIdx,
+                                                            setCurrentNavIdx,
+                                                            highlight,
+                                                            isCountActive
+                                                        )
+                                                    }
+                                                    disabled={!isCountActive}
+                                                >
+                                                    ↓
+                                                </button>
+                                            </span>
                                         )}
                                         {isActive && (
                                             <Button
