@@ -2,9 +2,11 @@
 @use './components/input.scss';
 @use  './components/toast.scss';
 
-
+body {
+  margin: 0.25rem 0.25rem 2px;
+}
 .popup {
-  padding: 1rem;
+  padding: 0.5rem;
   width: 24rem;
   background-color: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(4px);
@@ -65,6 +67,16 @@
       &:checked {
         background-color: #3B82F6;
       }
+    }
+  }
+
+  &__rating-request{
+    display: flex;
+   justify-content: flex-end;
+    gap: 0.5rem;
+    font-size: 11px;
+    p{
+      margin: 0;
     }
   }
 

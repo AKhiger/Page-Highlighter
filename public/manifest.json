@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Better Search and Highlight",
-  "version": "1.0.0",
+  "name": "Better Textual Search",
+  "version": "1.0.1",
   "description": "Search and highlight text on web pages with exact or regex matching.",
   "permissions": [
     "activeTab",

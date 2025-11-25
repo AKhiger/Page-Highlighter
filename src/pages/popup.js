@@ -301,7 +301,20 @@ function Popup() {
                             })}
                         </div>
                     </div>
+                    
+                     
                 )}
+                <div className="popup__rating-request">
+                    <p>Enjoying the extension? Please <a
+                        href="https://chromewebstore.google.com/detail/better-textual-search/dimpcaeogpkipomooimghnhoilefgjcd#:~:text=See all reviews"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="popup__store-link"
+                    >rate us</a> on Chrome Web Store</p>
+
+
+
+                </div>
             </div>
         </div>
     );
